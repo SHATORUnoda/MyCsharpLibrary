@@ -1,5 +1,3 @@
-// Bundler
-// Resolves library dependencies and generates a single submit.cs file.
 using System.Text;
 using System.Text.RegularExpressions;
 
