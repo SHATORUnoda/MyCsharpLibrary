@@ -20,6 +20,7 @@ public class ImplicitTreap<T> : IEnumerable<T>
         public bool Rev;
         public Node Left;
         public Node Right;
+        public Node Parent;
 
         public Node(T value, int priority)
         {
@@ -31,6 +32,9 @@ public class ImplicitTreap<T> : IEnumerable<T>
 
     private Node root;
 
+    private readonly Dictionary<T, HashSet<Node>> nodesByValue = new();
+    private readonly HashSet<Node> nullValueNodes = new();
+
     private static readonly Random rnd = new();
 
     private static int Size(Node n)
@@ -40,6 +44,30 @@ public class ImplicitTreap<T> : IEnumerable<T>
     {
         if (n != null)
             n.Size = 1 + Size(n.Left) + Size(n.Right);
+    }
+
+    private static void SetRoot(ref Node root, Node node)
+    {
+        root = node;
+
+        if (node != null)
+            node.Parent = null;
+    }
+
+    private static void SetLeft(Node parent, Node child)
+    {
+        parent.Left = child;
+
+        if (child != null)
+            child.Parent = parent;
+    }
+
+    private static void SetRight(Node parent, Node child)
+    {
+        parent.Right = child;
+
+        if (child != null)
+            child.Parent = parent;
     }
 
     private static void Toggle(Node n)
@@ -62,23 +90,34 @@ public class ImplicitTreap<T> : IEnumerable<T>
     private static Node Merge(Node a, Node b)
     {
         if (a == null)
+        {
+            if (b != null)
+                b.Parent = null;
+
             return b;
+        }
 
         if (b == null)
+        {
+            a.Parent = null;
+
             return a;
+        }
 
         if (a.Priority > b.Priority)
         {
             Push(a);
-            a.Right = Merge(a.Right, b);
+            SetRight(a, Merge(a.Right, b));
             Update(a);
+            a.Parent = null;
             return a;
         }
         else
         {
             Push(b);
-            b.Left = Merge(a, b.Left);
+            SetLeft(b, Merge(a, b.Left));
             Update(b);
+            b.Parent = null;
             return b;
         }
     }
@@ -96,51 +135,73 @@ public class ImplicitTreap<T> : IEnumerable<T>
 
         if (Size(n.Left) >= k)
         {
-            Split(n.Left, k, out a, out n.Left);
+            Split(n.Left, k, out a, out Node left);
+            SetLeft(n, left);
             b = n;
+            b.Parent = null;
+
+            if (a != null)
+                a.Parent = null;
+
             Update(b);
         }
         else
         {
-            Split(n.Right, k - Size(n.Left) - 1, out n.Right, out b);
+            Split(n.Right, k - Size(n.Left) - 1, out Node right, out b);
+            SetRight(n, right);
             a = n;
+            a.Parent = null;
+
+            if (b != null)
+                b.Parent = null;
+
             Update(a);
         }
     }
 
     private static T Kth(Node n, int k)
     {
-        Push(n);
-
-        int leftSize = Size(n.Left);
-
-        if (k < leftSize)
-            return Kth(n.Left, k);
-
-        if (k == leftSize)
-            return n.Value;
-
-        return Kth(n.Right, k - leftSize - 1);
+        return KthNode(n, k).Value;
     }
 
-    private static void SetValue(Node n, int k, T value)
+    private static Node KthNode(Node n, int k)
     {
         Push(n);
 
         int leftSize = Size(n.Left);
 
         if (k < leftSize)
+            return KthNode(n.Left, k);
+
+        if (k == leftSize)
+            return n;
+
+        return KthNode(n.Right, k - leftSize - 1);
+    }
+
+    private static int GetIndex(Node node)
+    {
+        var path = new Stack<Node>();
+
+        for (Node current = node; current != null; current = current.Parent)
+            path.Push(current);
+
+        Node currentNode = path.Pop();
+        Push(currentNode);
+        int index = 0;
+
+        while (path.Count > 0)
         {
-            SetValue(n.Left, k, value);
+            Node child = path.Pop();
+
+            if (currentNode.Right == child)
+                index += Size(currentNode.Left) + 1;
+
+            currentNode = child;
+            Push(currentNode);
         }
-        else if (k == leftSize)
-        {
-            n.Value = value;
-        }
-        else
-        {
-            SetValue(n.Right, k - leftSize - 1, value);
-        }
+
+        return index + Size(node.Left);
     }
 
     private static void Enumerate(Node n, List<T> list)
@@ -152,6 +213,66 @@ public class ImplicitTreap<T> : IEnumerable<T>
         Enumerate(n.Left, list);
         list.Add(n.Value);
         Enumerate(n.Right, list);
+    }
+
+    private void AddToIndex(Node node)
+    {
+        if (node.Value is null)
+        {
+            nullValueNodes.Add(node);
+            return;
+        }
+
+        if (!nodesByValue.TryGetValue(node.Value, out HashSet<Node> nodes))
+        {
+            nodes = new HashSet<Node>();
+            nodesByValue.Add(node.Value, nodes);
+        }
+
+        nodes.Add(node);
+    }
+
+    private void RemoveFromIndex(Node node)
+    {
+        if (node.Value is null)
+        {
+            nullValueNodes.Remove(node);
+            return;
+        }
+
+        HashSet<Node> nodes = nodesByValue[node.Value];
+        nodes.Remove(node);
+
+        if (nodes.Count == 0)
+            nodesByValue.Remove(node.Value);
+    }
+
+    private bool TryGetNodes(T value, out HashSet<Node> nodes)
+    {
+        if (value is null)
+        {
+            nodes = nullValueNodes;
+            return nodes.Count > 0;
+        }
+
+        return nodesByValue.TryGetValue(value, out nodes);
+    }
+
+    private void MoveTo(ImplicitTreap<T> destination, Node node)
+    {
+        RemoveFromIndex(node);
+        destination.AddToIndex(node);
+    }
+
+    private static void CollectNodes(Node node, List<Node> nodes)
+    {
+        if (node == null)
+            return;
+
+        Push(node);
+        CollectNodes(node.Left, nodes);
+        nodes.Add(node);
+        CollectNodes(node.Right, nodes);
     }
 
     public ImplicitTreap()
@@ -170,6 +291,11 @@ public class ImplicitTreap<T> : IEnumerable<T>
     public int Count => Size(root);
 
     public bool IsEmpty => root == null;
+
+    public bool Contains(T value)
+    {
+        return TryGetNodes(value, out _);
+    }
 
     public T this[int index]
     {
@@ -191,7 +317,14 @@ public class ImplicitTreap<T> : IEnumerable<T>
             if ((uint)index >= (uint)Count)
                 throw new ArgumentOutOfRangeException(nameof(index));
 
-            SetValue(root, index, value);
+            Node node = KthNode(root, index);
+
+            if (!EqualityComparer<T>.Default.Equals(node.Value, value))
+            {
+                RemoveFromIndex(node);
+                node.Value = value;
+                AddToIndex(node);
+            }
         }
     }
 
@@ -223,8 +356,10 @@ public class ImplicitTreap<T> : IEnumerable<T>
         if ((uint)index > (uint)Count)
             throw new ArgumentOutOfRangeException(nameof(index));
 
+        var node = new Node(value, rnd.Next());
         Split(root, index, out Node a, out Node b);
-        root = Merge(Merge(a, new Node(value, rnd.Next())), b);
+        SetRoot(ref root, Merge(Merge(a, node), b));
+        AddToIndex(node);
     }
 
     public void AddFirst(T value)
@@ -235,6 +370,20 @@ public class ImplicitTreap<T> : IEnumerable<T>
     public void AddLast(T value)
     {
         Insert(Count, value);
+    }
+
+    public bool Remove(T value)
+    {
+        if (!TryGetNodes(value, out HashSet<Node> nodes))
+            return false;
+
+        foreach (Node node in nodes)
+        {
+            RemoveAt(GetIndex(node));
+            return true;
+        }
+
+        return false;
     }
 
     public T RemoveAt(int index)
@@ -250,7 +399,8 @@ public class ImplicitTreap<T> : IEnumerable<T>
 
         Push(c);
         T ret = c.Value;
-        root = Merge(a, b);
+        RemoveFromIndex(c);
+        SetRoot(ref root, Merge(a, b));
 
         return ret;
     }
@@ -282,8 +432,9 @@ public class ImplicitTreap<T> : IEnumerable<T>
         Split(b, length, out Node c, out b);
 
         Toggle(c);
-        root = Merge(Merge(a, c), b);
+        SetRoot(ref root, Merge(Merge(a, c), b));
     }
+    
 
     public ImplicitTreap<T> Slice(int left, int length)
     {
@@ -299,7 +450,7 @@ public class ImplicitTreap<T> : IEnumerable<T>
         var list = new List<T>(length);
         Enumerate(c, list);
 
-        root = Merge(Merge(a, c), b);
+        SetRoot(ref root, Merge(Merge(a, c), b));
 
         return new ImplicitTreap<T>(list);
     }
@@ -320,7 +471,16 @@ public class ImplicitTreap<T> : IEnumerable<T>
             root = c
         };
 
-        root = Merge(a, b);
+        if (c != null)
+            c.Parent = null;
+
+        var nodes = new List<Node>(length);
+        CollectNodes(c, nodes);
+
+        foreach (Node node in nodes)
+            MoveTo(ret, node);
+
+        SetRoot(ref root, Merge(a, b));
 
         return ret;
     }
@@ -348,15 +508,21 @@ public class ImplicitTreap<T> : IEnumerable<T>
         Node mid = null;
 
         foreach (T item in items)
-            mid = Merge(mid, new Node(item, rnd.Next()));
+        {
+            var node = new Node(item, rnd.Next());
+            mid = Merge(mid, node);
+            AddToIndex(node);
+        }
 
         Split(root, index, out Node a, out Node b);
-        root = Merge(Merge(a, mid), b);
+        SetRoot(ref root, Merge(Merge(a, mid), b));
     }
 
     public void Clear()
     {
         root = null;
+        nodesByValue.Clear();
+        nullValueNodes.Clear();
     }
 
     public T[] ToArray()

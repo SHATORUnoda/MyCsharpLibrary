@@ -1,21 +1,26 @@
 using System;
-using System.Collections.Generic;
 using System.Collections;
-using System.Linq;
-using System.Text;
+using System.Collections.Generic;
 using System.IO;
-using static System.Console;
-using static System.Math;
-using static System.Array;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Text;
+using static System.Array;
+using static System.Console;
+using static System.Math;
 
 public static class Itertools
 {
-    public static IEnumerable<int[]> Nbit(int n, int m) //nが桁数,mが進数
+    // n桁・m進数の全パターン
+    // 例: Nbit(2, 3)
+    // => [0,0], [0,1], [0,2], [1,0], ..., [2,2]
+    public static IEnumerable<int[]> Nbit(int n, int m)
     {
         long lim = 1;
-        for (int i = 0; i < n; i++) lim *= m;
+
+        for (int i = 0; i < n; i++)
+            lim *= m;
 
         for (long mask = 0; mask < lim; mask++)
         {
@@ -31,7 +36,11 @@ public static class Itertools
             yield return p;
         }
     }
-    public static IEnumerable<T[]> Permutations<T>(IEnumerable<T> iterable, int? r = null)
+
+    // 順列
+    public static IEnumerable<T[]> Permutations<T>(
+        IEnumerable<T> iterable,
+        int? r = null)
     {
         T[] items = iterable.ToArray();
         int n = items.Length;
@@ -56,7 +65,8 @@ public static class Itertools
 
             for (int i = 0; i < n; i++)
             {
-                if (used[i]) continue;
+                if (used[i])
+                    continue;
 
                 used[i] = true;
                 perm[depth] = items[i];
@@ -69,7 +79,10 @@ public static class Itertools
         }
     }
 
-    public static IEnumerable<T[]> Combinations<T>(IEnumerable<T> iterable, int r)
+    // 組合せ
+    public static IEnumerable<T[]> Combinations<T>(
+        IEnumerable<T> iterable,
+        int r)
     {
         T[] items = iterable.ToArray();
         int n = items.Length;
@@ -99,7 +112,11 @@ public static class Itertools
             }
         }
     }
-    public static IEnumerable<T[]> CombinationsWithReplacement<T>(IEnumerable<T> iterable, int r)
+
+    // 重複組合せ
+    public static IEnumerable<T[]> CombinationsWithReplacement<T>(
+        IEnumerable<T> iterable,
+        int r)
     {
         T[] items = iterable.ToArray();
         int n = items.Length;
@@ -133,14 +150,24 @@ public static class Itertools
             {
                 comb[depth] = items[i];
 
-                // i + 1 ではなく i にすることで同じ要素を何回でも選べる
+                // i + 1 ではなく i にすることで
+                // 同じ要素を何回でも選べる
                 foreach (var c in Dfs(depth + 1, i))
                     yield return c;
             }
         }
     }
-    public static IEnumerable<int> Range(int start, int count) => Enumerable.Range(start, count);
-    public static IEnumerable<T[]> Product<T>(IEnumerable<T> iterable, int repeat = 1)
+
+    // Python の range(start, count) 相当
+    public static IEnumerable<int> Range(int start, int count)
+        => Enumerable.Range(start, count);
+
+    // 直積
+    // 例: Product([0,1,2], 2)
+    // => [0,0], [0,1], [0,2], [1,0], ...
+    public static IEnumerable<T[]> Product<T>(
+        IEnumerable<T> iterable,
+        int repeat = 1)
     {
         T[] items = iterable.ToArray();
 
@@ -177,8 +204,16 @@ public static class Itertools
                     yield return p;
             }
         }
-    
-}
+    }
+
+    // 各桁の上限が異なる全パターン
+    //
+    // limits[i] が「その桁で取り得る値の個数」
+    //
+    // 例:
+    // Mix(new[] { 2, 3 })
+    // => [0,0], [0,1], [0,2],
+    //    [1,0], [1,1], [1,2]
     public static IEnumerable<int[]> Mix(int[] limits)
     {
         int n = limits.Length;
@@ -201,13 +236,8 @@ public static class Itertools
                 pos--;
             }
 
-            if (pos < 0) yield break;
+            if (pos < 0)
+                yield break;
         }
     }
 }
-/*
-foreach (var p in EnumerateEx.Product(3, 2))
-{
-    Console.WriteLine(string.Join("", p));
-}
-*/

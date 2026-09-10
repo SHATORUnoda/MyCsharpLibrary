@@ -33,6 +33,21 @@ where T : IComparable<T>
 
     private Node root;
 
+    public Treap()
+    {
+    }
+
+    public Treap(T value)
+    {
+        Add(value);
+    }
+
+    public Treap(IEnumerable<T> values)
+    {
+        foreach (var value in values)
+            Add(value);
+    }
+
     private static readonly Random rnd = new();
 
     private static int Size(Node n)
@@ -290,6 +305,17 @@ where T : IComparable<T>
                 throw new IndexOutOfRangeException();
 
             return Kth(root, index);
+        }
+        set
+        {
+            if (index < 0)
+                index += Count;
+
+            if ((uint)index >= (uint)Count)
+                throw new IndexOutOfRangeException();
+
+            EraseAt(ref root, index);
+            Add(value);
         }
     }
 

@@ -10,50 +10,6 @@ using static System.Array;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
-public class DebugOutput : TextWriter
-{
-    public readonly TextWriter console;
-    public readonly TextWriter file;
-
-    public DebugOutput(TextWriter console, TextWriter file)
-    {
-        this.console = console;
-        this.file = file;
-    }
-
-    public override Encoding Encoding => console.Encoding;
-
-    public override void Write(char value)
-    {
-        console.Write(value);
-        file.Write(value);
-    }
-
-    public override void Write(string value)
-    {
-        console.Write(value);
-        file.Write(value);
-    }
-
-    public override void Flush()
-    {
-        console.Flush();
-        file.Flush();
-    }
-
-    public static void Init()
-    {
-        var file = new StreamWriter("../out.txt", false)
-        {
-            AutoFlush = true
-        };
-
-        Console.SetOut(
-            new DebugOutput(Console.Out, file)
-        );
-    }
-}
-
 public static class Reader
 {
     public static int ReadInt()
@@ -78,21 +34,6 @@ public static class Reader
             : new long[0];
     }
 
-    public static List<int> ReadIntList()
-    {
-        string str = ReadLine();
-        return str != ""
-            ? str.Split().Select(int.Parse).ToList()
-            : new List<int>();
-    }
-
-    public static List<long> ReadLongList()
-    {
-        string str = ReadLine();
-        return str != ""
-            ? str.Split().Select(long.Parse).ToList()
-            : new List<long>();
-    }
 
     public static char[] ReadCharArray()
         => ReadLine().ToCharArray();
@@ -165,16 +106,5 @@ public static class Reader
     public static void WriteArray<T>(IEnumerable<T> array, string separator = " ")
     {
         WriteLine(string.Join(separator, array));
-    }
-    public static long Pow(long a, long n)
-    {
-        long res = 1;
-        while (n > 0)
-        {
-            if ((n & 1) != 0) res *= a;
-            a *= a;
-            n >>= 1;
-        }
-        return res;
     }
 }
