@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -92,7 +92,7 @@ submit.AppendLine();
 submit.Append(body);
 submit.AppendLine();
 submit.AppendLine("// Generated using CsharpVersionBundler by SHATORUnoda");
-submit.AppendLine("// https://github.com/SHATORUnoda/CsharpVersionBundler/blob/main/Program.cs");
+submit.AppendLine("// https://github.com/SHATORUnoda/MyCsharpLibrary/blob/main/Bundler/Program.cs");
 
 File.WriteAllText(output, submit.ToString());
 
