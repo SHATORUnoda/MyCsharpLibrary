@@ -379,107 +379,109 @@ where T : IComparable<T>
         return rank-1;
     }
 
-    public T LowerBound(T value)
+    public int LowerBound(T value)
     {
         Node cur = root;
-        Node ans = null;
+        int rank = 0;
+        int ans = -1;
 
         while (cur != null)
         {
             if (cur.Value.CompareTo(value) >= 0)
             {
-                ans = cur;
+                ans = rank + Size(cur.Left);
                 cur = cur.Left;
             }
             else
             {
+                rank += Size(cur.Left) + cur.Count;
                 cur = cur.Right;
             }
         }
 
-        if (ans == null)
-            throw new InvalidOperationException();
-
-        return ans.Value;
+        return ans;
     }
 
-    public T UpperBound(T value)
+    public int UpperBound(T value)
     {
         Node cur = root;
-        Node ans = null;
+        int rank = 0;
+        int ans = -1;
 
         while (cur != null)
         {
             if (cur.Value.CompareTo(value) > 0)
             {
-                ans = cur;
+                ans = rank + Size(cur.Left);
                 cur = cur.Left;
             }
             else
             {
+                rank += Size(cur.Left) + cur.Count;
                 cur = cur.Right;
             }
         }
 
-        if (ans == null)
-            throw new InvalidOperationException();
-
-        return ans.Value;
+        return ans;
     }
 
-    public bool TryLowerBound(T value, out T result)
+    public bool TryLowerBound(T value, out int result)
     {
         Node cur = root;
-        Node ans = null;
+        int rank = 0;
+        int ans = -1;
 
         while (cur != null)
         {
             if (cur.Value.CompareTo(value) >= 0)
             {
-                ans = cur;
+                ans = rank + Size(cur.Left);
                 cur = cur.Left;
             }
             else
             {
+                rank += Size(cur.Left) + cur.Count;
                 cur = cur.Right;
             }
         }
 
-        if (ans == null)
+        if (ans < 0)
         {
-            result = default;
+            result = -1;
             return false;
         }
 
-        result = ans.Value;
+        result = ans;
         return true;
     }
 
-    public bool TryUpperBound(T value, out T result)
+    public bool TryUpperBound(T value, out int result)
     {
         Node cur = root;
-        Node ans = null;
+        int rank = 0;
+        int ans = -1;
 
         while (cur != null)
         {
             if (cur.Value.CompareTo(value) > 0)
             {
-                ans = cur;
+                ans = rank + Size(cur.Left);
                 cur = cur.Left;
             }
             else
             {
+                rank += Size(cur.Left) + cur.Count;
                 cur = cur.Right;
             }
         }
 
-        if (ans == null)
+        if (ans < 0)
         {
-            result = default;
+            result = -1;
             return false;
         }
 
-        result = ans.Value;
+        result = ans;
         return true;
     }
 

@@ -10,6 +10,19 @@ using static System.Console;
 using static System.Math;
 using static System.Array;
 
+/// <summary>
+/// 素因数分解に使用するアルゴリズム。
+/// </summary>
+public enum PrimeFactorizationMethod
+{
+    /// <summary>入力に応じてアルゴリズムを選択する。</summary>
+    Auto,
+    /// <summary>試しわりを使用する。</summary>
+    TrialDivision,
+    /// <summary>Miller-Rabin 法と Pollard's rho 法を使用する。</summary>
+    PollardRho
+}
+
 public static class LibMath
 {
     // ============================================================
@@ -354,9 +367,31 @@ public static class LibMath
     /// 360 -> [(2,3), (3,2), (5,1)]
     /// </example>
     /// <remarks>
-    /// 計算量: O(sqrt(N))
+    /// 既定では N <= 10^12 に試しわり、それより大きい場合に Pollard's rho 法を使用する。
     /// </remarks>
-    public static List<(long Prime, int Count)> PrimeFactorize(long n)
+    /// <param name="n">素因数分解する整数。0 は指定できない。</param>
+    /// <param name="method">
+    /// 使用するアルゴリズム。省略時は絶対値に応じて自動選択する。
+    /// 明示された場合は入力サイズにかかわらず指定を優先する。
+    /// </param>
+    public static List<(long Prime, int Count)> PrimeFactorize(
+        long n,
+        char method)
+    {
+        return char.ToUpperInvariant(method) switch
+        {
+            'T' => PrimeFactorize(n, PrimeFactorizationMethod.TrialDivision),
+            'P' => PrimeFactorize(n, PrimeFactorizationMethod.PollardRho),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(method),
+                method,
+                "Use 'T' for trial division or 'P' for Pollard's rho.")
+        };
+    }
+
+    public static List<(long Prime, int Count)> PrimeFactorize(
+        long n,
+        PrimeFactorizationMethod method = PrimeFactorizationMethod.Auto)
     {
         var result = new List<(long Prime, int Count)>();
 
@@ -364,42 +399,145 @@ public static class LibMath
             throw new ArgumentException(
                 "0 cannot be factorized.");
 
+        if (method != PrimeFactorizationMethod.Auto &&
+            method != PrimeFactorizationMethod.TrialDivision &&
+            method != PrimeFactorizationMethod.PollardRho)
+        {
+            throw new ArgumentOutOfRangeException(nameof(method));
+        }
+
+        if (n == long.MinValue)
+        {
+            result.Add((2, 63));
+            return result;
+        }
+
         n = Abs(n);
 
         if (n == 1)
             return result;
 
-        int count = 0;
-
-        while ((n & 1) == 0)
+        bool usePollardRho = method switch
         {
-            n >>= 1;
-            count++;
-        }
+            PrimeFactorizationMethod.Auto =>
+                n > 1_000_000_000_000L,
+            PrimeFactorizationMethod.TrialDivision => false,
+            PrimeFactorizationMethod.PollardRho => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(method))
+        };
 
-        if (count > 0)
-            result.Add((2, count));
+        if (!usePollardRho)
+            return FactorizeByTrialDivision(n);
 
-        for (long p = 3; p <= n / p; p += 2)
+        var primeFactors = new List<long>();
+        CollectPrimeFactors(n);
+        primeFactors.Sort();
+
+        for (int i = 0; i < primeFactors.Count;)
         {
-            if (n % p != 0)
-                continue;
-
-            count = 0;
-
-            while (n % p == 0)
+            int j = i + 1;
+            while (j < primeFactors.Count &&
+                   primeFactors[j] == primeFactors[i])
             {
-                n /= p;
+                j++;
+            }
+
+            result.Add((primeFactors[i], j - i));
+            i = j;
+        }
+        return result;
+
+        List<(long Prime, int Count)> FactorizeByTrialDivision(long value)
+        {
+            var factors = new List<(long Prime, int Count)>();
+
+            int count = 0;
+            while ((value & 1) == 0)
+            {
+                value >>= 1;
                 count++;
             }
 
-            result.Add((p, count));
+            if (count > 0)
+                factors.Add((2, count));
+
+            for (long p = 3; p <= value / p; p += 2)
+            {
+                if (value % p != 0)
+                    continue;
+
+                count = 0;
+                while (value % p == 0)
+                {
+                    value /= p;
+                    count++;
+                }
+
+                factors.Add((p, count));
+            }
+
+            if (value > 1)
+                factors.Add((value, 1));
+
+            return factors;
         }
 
-        if (n > 1)
-            result.Add((n, 1));
+        void CollectPrimeFactors(long value)
+        {
+            if (value == 1)
+                return;
 
-        return result;
+            if (IsPrime(value))
+            {
+                primeFactors.Add(value);
+                return;
+            }
+
+            long divisor = PollardRho(value);
+            CollectPrimeFactors(divisor);
+            CollectPrimeFactors(value / divisor);
+        }
+
+        long PollardRho(long value)
+        {
+            if (value % 2 == 0)
+                return 2;
+            if (value % 3 == 0)
+                return 3;
+            if (value % 5 == 0)
+                return 5;
+
+            while (true)
+            {
+                long c = Random.Shared.NextInt64(1, value);
+                long x = Random.Shared.NextInt64(2, value);
+                long y = x;
+                long divisor = 1;
+
+                while (divisor == 1)
+                {
+                    x = PollardRhoStep(x, c, value);
+                    y = PollardRhoStep(
+                        PollardRhoStep(y, c, value),
+                        c,
+                        value);
+
+                    long difference = x >= y ? x - y : y - x;
+                    divisor = Gcd(difference, value);
+                }
+
+                if (divisor != value)
+                    return divisor;
+            }
+        }
+
+        long PollardRhoStep(long x, long c, long mod)
+        {
+            long square = MulMod(x, x, mod);
+            return square >= mod - c
+                ? square - (mod - c)
+                : square + c;
+        }
     }
 
 
