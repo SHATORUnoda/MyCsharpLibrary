@@ -21,7 +21,7 @@
 | [`IsPrime`](#isprime)                           | 素数判定               |     `O(log n)` 程度 |
 | [`Eratosthenes`](#eratosthenes)                 | エラトステネスの篩          |  `O(N log log N)` |
 | [`SmallestPrimeFactor`](#smallest-prime-factor) | 各整数の最小素因数を求める      |  `O(N log log N)` |
-| [`PrimeFactorize`](#prime-factorize)            | 素因数分解              |           `O(√N)` |
+| [`PrimeFactorize`](#prime-factorize)            | 素因数分解              |     自動選択（下記） |
 | [`Divisors`](#divisors)                         | 正の約数を昇順で列挙         | `O(√N + D log D)` |
 | [`Factorial`](#factorial)                       | `n!` を求める          |            `O(N)` |
 | [`NPr`](#npr)                                   | `nPr` を求める         |            `O(r)` |
@@ -79,12 +79,12 @@ long g = LibMath.Gcd(12, 18);
 | ---------------- | ------------------------------------------------- |
 | `O(1)`           | `MulMod`                                          |
 | `O(log N)`       | `Gcd`, `Pow`, `PowMod`, `ModInverse`              |
-| `O(√N)`          | `PrimeFactorize`, `Totient`, `Mobius`, `Divisors` |
+| `O(√N)`          | `PrimeFactorize`（`N <= 10^12` 時）, `Totient`, `Mobius`, `Divisors` |
 | `O(N log log N)` | `Eratosthenes`, `SmallestPrimeFactor`             |
 | `O(N)`           | `Factorial`                                       |
 | 組合せ数に比例          | `NCr`, `NPr`                                      |
 
-特に `PrimeFactorize` や `Totient` は、単純に `2～N` を調べるのではなく、最大でも `√N` 程度まで調べればよいという性質を利用しています。
+`PrimeFactorize` は `N <= 10^12` では試しわりを使い、それより大きい値では Miller-Rabin 法と Pollard's rho 法を使います。
 
 ---
 
@@ -967,7 +967,9 @@ while (x > 1)
 
 ```csharp
 public static List<(long Prime, int Count)>
-    PrimeFactorize(long n)
+    PrimeFactorize(
+        long n,
+        PrimeFactorizationMethod method = PrimeFactorizationMethod.Auto)
 ```
 
 ## 概要
@@ -1006,13 +1008,32 @@ var f = LibMath.PrimeFactorize(360);
 
 ## 計算量
 
-```text
-O(√N)
+`method` を省略した場合、`|n| <= 10^12` では `O(√N)` の試しわりを使い、それを超える場合は Miller-Rabin 法で素数を判定し、Pollard's rho 法で因数を探索します。Pollard's rho 法は確率的アルゴリズムであり、最小素因数を `p` とすると期待計算量は概ね `O(√p)` 回の剰余演算ですが、実行時間に決定的な上限はありません。探索に失敗した場合は異なる乱数で再試行します。
+
+## アルゴリズムの指定
+
+省略時は入力サイズに応じて自動選択します。`TrialDivision` または `PollardRho` を指定すると、通常は入力サイズよりも指定した方式を優先します。ただし、`long.MinValue` は方式指定にかかわらず特別処理され、`(2, 63)` を返します。絶対値 `2^63` が `long` の範囲に収まらないため、一般の負数のように絶対値を取ってから処理することはできません。
+
+文字で方式を渡す場合は、`'T'` または `'t'` で試しわり、`'P'` または `'p'` で Miller-Rabin 法と Pollard's rho 法を選択できます。これら以外の文字では `ArgumentOutOfRangeException` が発生します。
+
+```csharp
+// 自動選択: |n| <= 10^12 なら試しわり、それより大きければ Pollard's rho
+var automatic = LibMath.PrimeFactorize(n);
+
+// 文字でアルゴリズムを指定（大文字・小文字を区別しない）
+var trialDivisionByChar = LibMath.PrimeFactorize(n, 'T'); // 't' も可
+var pollardRhoByChar = LibMath.PrimeFactorize(n, 'P');    // 'p' も可
+
+// 明示的に試しわりを選択
+var trialDivision = LibMath.PrimeFactorize(
+    n,
+    PrimeFactorizationMethod.TrialDivision);
+
+// 明示的に Miller-Rabin + Pollard's rho を選択
+var pollardRho = LibMath.PrimeFactorize(
+    n,
+    PrimeFactorizationMethod.PollardRho);
 ```
-
-です。
-
-ただし、素因数が早い段階で見つかる場合は実際の処理量はもっと少なくなります。
 
 ## 使い方
 
@@ -1056,9 +1077,11 @@ ArgumentException
 
 が発生します。
 
-負数については絶対値を取ってから分解します。
+負数については絶対値を取ってから分解します。`long.MinValue` に限り、絶対値を取る処理を行わず `(2, 63)` を返します。この特別処理は方式指定より優先されます。
 
 `1` と `-1` の場合は空のリストが返ります。
+
+未定義の `PrimeFactorizationMethod` 値を指定した場合は `ArgumentOutOfRangeException` が発生します。
 
 ---
 

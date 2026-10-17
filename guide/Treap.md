@@ -7,7 +7,7 @@
 | メソッド / プロパティ                                        | 概要           |           計算量 |
 | --------------------------------------------------- | ------------ | ------------: |
 | [Treap()](#constructor)                             | 空の Treap を作成 |          O(1) |
-| [Treap(T value)](#constructor-value)                | 1要素から作成      |   期待 O(log N) |
+| [Treap(T value)](#constructor-value)                | 1要素から作成      |          O(1) |
 | [Treap(IEnumerable<T> values)](#constructor-values) | 列挙可能な要素から作成  | 期待 O(N log N) |
 | [Count](#count)                                     | 要素数を取得       |          O(1) |
 | [IsEmpty](#isempty)                                 | 空か判定         |          O(1) |
@@ -37,11 +37,11 @@
 | メソッド / プロパティ                    | 概要                     |         計算量 |
 | ------------------------------- | ---------------------- | ----------: |
 | [BinarySearch](#binarysearch)   | 指定値の位置を検索              | 期待 O(log N) |
-| [MinBinary](#minbinary)         | `value` 未満の要素数から位置を求める | 期待 O(log N) |
-| [LowerBound](#lowerbound)       | `value` 以上の最小要素        | 期待 O(log N) |
-| [UpperBound](#upperbound)       | `value` より大きい最小要素      | 期待 O(log N) |
-| [TryLowerBound](#trylowerbound) | LowerBound の安全版        | 期待 O(log N) |
-| [TryUpperBound](#tryupperbound) | UpperBound の安全版        | 期待 O(log N) |
+| [MinBinary](#minbinary)         | `value` 未満の最後の要素のインデックス | 期待 O(log N) |
+| [LowerBound](#lowerbound)       | `value` 以上の最小要素のインデックス | 期待 O(log N) |
+| [UpperBound](#upperbound)       | `value` より大きい最小要素のインデックス | 期待 O(log N) |
+| [TryLowerBound](#trylowerbound) | LowerBound の成功可否を返す版 | 期待 O(log N) |
+| [TryUpperBound](#tryupperbound) | UpperBound の成功可否を返す版 | 期待 O(log N) |
 
 ### 列挙
 
@@ -743,9 +743,8 @@ BinarySearch(5)
 
 は `2` を返します。
 
-重複がある場合は、**最初に探索で見つかった `5` の位置**が返ります。
-
-必ず左端の `5` を返すとは限りません。
+重複がある場合は、同じ値を1つの Node にまとめて管理しているため、
+**左端の `5` の位置**が返ります。(つまり返り値は`2`)
 
 存在しない場合は、
 
@@ -767,7 +766,29 @@ BinarySearch(5)
 
 ## `MinBinary(T value)`
 
-`value` より小さい要素の個数を利用して位置を求めます。
+`value` より小さい要素のうち、最後の要素のインデックスを返します。
+
+つまり、ソート済みの要素を `a` とすると、
+
+```text
+最大の i (a[i] < value)
+```
+
+を返します。該当する要素がなければ `-1` です。
+
+例えば、
+
+```text
+a = 1 3 5 5 8
+```
+
+に対して、次のようになります。
+
+```text
+MinBinary(5)  -> 1
+MinBinary(1)  -> -1
+MinBinary(10) -> 4
+```
 
 実装では、
 
@@ -783,7 +804,9 @@ else
 
 として探索します。
 
-ただし、このメソッドは一般的な `LowerBound` / `UpperBound` と比べると返り値の意味が分かりにくいため、利用時には注意が必要です。
+`LowerBound(value)` が見つかる場合は `LowerBound(value) - 1` と同じ結果です。
+`LowerBound(value)` が `-1` の場合は、すべての要素が `value` 未満なので
+`Count - 1` を返します。
 
 ### 計算量
 
@@ -797,12 +820,12 @@ else
 
 ## `LowerBound(T value)`
 
-`value` 以上となる最小の要素を返します。
+`value` 以上となる最小の要素のインデックスを返します。
 
 つまり、
 
 ```text
-最初の x >= value
+最初の x >= value のインデックス
 ```
 
 です。
@@ -822,7 +845,7 @@ treap.LowerBound(4);
 なら、
 
 ```text
-5
+2
 ```
 
 が返ります。
@@ -834,7 +857,7 @@ treap.LowerBound(5);
 なら、
 
 ```text
-5
+2
 ```
 
 です。
@@ -853,7 +876,7 @@ treap.LowerBound(5);
 treap.LowerBound(10);
 ```
 
-を実行すると、該当要素がないため `InvalidOperationException` が発生します。
+を実行すると、該当要素がないため `-1` が返ります。
 
 ### 計算量
 
@@ -867,12 +890,12 @@ treap.LowerBound(10);
 
 ## `UpperBound(T value)`
 
-`value` より大きい最小の要素を返します。
+`value` より大きい最小の要素のインデックスを返します。
 
 つまり、
 
 ```text
-最初の x > value
+最初の x > value のインデックス
 ```
 
 です。
@@ -892,7 +915,7 @@ treap.UpperBound(5);
 なら、
 
 ```text
-8
+4
 ```
 
 が返ります。
@@ -902,8 +925,8 @@ treap.UpperBound(5);
 ```text
 value = 5
 
-LowerBound → 5
-UpperBound → 8
+LowerBound → 2
+UpperBound → 4
 ```
 
 です。
@@ -918,9 +941,9 @@ UpperBound → 8
 
 <a id="trylowerbound"></a>
 
-## `TryLowerBound(T value, out T result)`
+## `TryLowerBound(T value, out int result)`
 
-`LowerBound` の例外を発生させない版です。
+`LowerBound` の結果を `bool` と `out int` で受け取る版です。
 
 ```csharp
 if (treap.TryLowerBound(5, out int x))
@@ -933,12 +956,12 @@ else
 }
 ```
 
-該当する値があれば `true` を返し、`result` に値を格納します。
+該当する値があれば `true` を返し、`result` にインデックスを格納します。
 
 存在しなければ、
 
 ```csharp
-false
+false // result は -1
 ```
 
 を返します。
@@ -953,9 +976,9 @@ false
 
 <a id="tryupperbound"></a>
 
-## `TryUpperBound(T value, out T result)`
+## `TryUpperBound(T value, out int result)`
 
-`UpperBound` の例外を発生させない版です。
+`UpperBound` の結果を `bool` と `out int` で受け取る版です。
 
 ```csharp
 if (treap.TryUpperBound(5, out int x))
@@ -964,7 +987,9 @@ if (treap.TryUpperBound(5, out int x))
 }
 ```
 
-`value` より大きい値が存在すれば、その最小値を取得します。
+`value` より大きい値が存在すれば、その要素のインデックスを取得します。
+
+存在しない場合は `false` を返し、`result` は `-1` になります。
 
 ### 計算量
 
@@ -1103,7 +1128,7 @@ foreach (var x in treap)
 そのため、
 
 ```text
-1 2 3 5 8
+2 5 8
 ```
 
 と昇順になります。
@@ -1638,7 +1663,7 @@ int x = treap.LowerBound(8);
 これは、
 
 ```text
-8以上の最小値
+8以上の最小値のインデックス
 ```
 
 を返します。
@@ -1654,7 +1679,7 @@ int x = treap.UpperBound(8);
 これは、
 
 ```text
-8より大きい最小値
+8より大きい最小値のインデックス
 ```
 
 を返します。
