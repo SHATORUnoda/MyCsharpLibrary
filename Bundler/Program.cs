@@ -38,6 +38,9 @@ foreach (TrimmedLibrary library in libraries)
 foreach (var usingDirective in trimmer.GetEntryUsings())
     usings.Add(usingDirective.ToString());
 
+foreach (var usingDirective in trimmer.GetEntryGlobalUsings())
+    usings.Add(usingDirective.ToString());
+
 StringBuilder body = new();
 
 void AppendCode(string code)
@@ -92,6 +95,7 @@ public sealed class LibraryTrimmer
     private readonly HashSet<SyntaxTree> libraryTrees;
     private readonly Dictionary<SyntaxTree, CompilationUnitSyntax> roots;
     private readonly Dictionary<SyntaxTree, string> paths;
+    private readonly SyntaxTree? autoImportTree;
     private readonly HashSet<ISymbol> selected =
         new(SymbolEqualityComparer.Default);
     private readonly Queue<ISymbol> pending = new();
@@ -99,10 +103,12 @@ public sealed class LibraryTrimmer
     private LibraryTrimmer(
         CSharpCompilation compilation,
         SyntaxTree entryTree,
-        IReadOnlyDictionary<SyntaxTree, string> libraryPaths)
+        IReadOnlyDictionary<SyntaxTree, string> libraryPaths,
+        SyntaxTree? autoImportTree)
     {
         this.compilation = compilation;
         EntryTree = entryTree;
+        this.autoImportTree = autoImportTree;
         libraryTrees = libraryPaths.Keys.ToHashSet();
         paths = new(libraryPaths);
         roots = libraryPaths.Keys.ToDictionary(
@@ -145,7 +151,65 @@ public sealed class LibraryTrimmer
                 OutputKind.ConsoleApplication,
                 checkOverflow: true));
 
-        return new LibraryTrimmer(compilation, entryTree, trees);
+        HashSet<INamedTypeSymbol> alreadyImported =
+            new(SymbolEqualityComparer.Default);
+        List<string> autoImports = new();
+
+        foreach (SyntaxTree tree in trees.Keys)
+        {
+            SemanticModel model = compilation.GetSemanticModel(tree);
+            CompilationUnitSyntax root =
+                (CompilationUnitSyntax)tree.GetRoot();
+
+            foreach (UsingDirectiveSyntax usingDirective in root.Usings
+                .Where(directive =>
+                    directive.GlobalKeyword.IsKind(
+                        SyntaxKind.GlobalKeyword) &&
+                    directive.StaticKeyword.IsKind(
+                        SyntaxKind.StaticKeyword)))
+            {
+                if (model.GetTypeInfo(usingDirective.Name!).Type
+                    is INamedTypeSymbol importedType)
+                {
+                    alreadyImported.Add(importedType.OriginalDefinition);
+                }
+            }
+
+            foreach (ClassDeclarationSyntax declaration in
+                     root.DescendantNodes().OfType<ClassDeclarationSyntax>())
+            {
+                if (!declaration.Modifiers.Any(SyntaxKind.StaticKeyword) ||
+                    model.GetDeclaredSymbol(declaration)
+                        is not INamedTypeSymbol type)
+                {
+                    continue;
+                }
+
+                INamedTypeSymbol definition = type.OriginalDefinition;
+
+                if (!alreadyImported.Add(definition))
+                    continue;
+
+                autoImports.Add(
+                    $"global using static {type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)};");
+            }
+        }
+
+        SyntaxTree? autoImportTree = autoImports.Count == 0
+            ? null
+            : CSharpSyntaxTree.ParseText(
+                string.Join(Environment.NewLine, autoImports),
+                options,
+                "__AutoLibraryUsings__.g.cs");
+
+        if (autoImportTree is not null)
+            compilation = compilation.AddSyntaxTrees(autoImportTree);
+
+        return new LibraryTrimmer(
+            compilation,
+            entryTree,
+            trees,
+            autoImportTree);
     }
 
     public IReadOnlyList<TrimmedLibrary> Trim()
@@ -170,6 +234,96 @@ public sealed class LibraryTrimmer
 
         return root.Usings.Where(usingDirective =>
             ShouldKeepUsing(usingDirective, model, root, false));
+    }
+
+    public IEnumerable<UsingDirectiveSyntax> GetEntryGlobalUsings()
+    {
+        SemanticModel entryModel = compilation.GetSemanticModel(EntryTree);
+        CompilationUnitSyntax entryRoot =
+            (CompilationUnitSyntax)EntryTree.GetRoot();
+        ISymbol[] referencedSymbols =
+            ReferencedSymbols(entryRoot, entryModel, false).ToArray();
+        INamedTypeSymbol[] referencedMemberTypes =
+            ReferencedMemberTypes(entryRoot, entryModel, false).ToArray();
+
+        foreach (var (tree, root) in roots)
+        {
+            SemanticModel model = compilation.GetSemanticModel(tree);
+
+            foreach (UsingDirectiveSyntax usingDirective in root.Usings
+                .Where(directive =>
+                    directive.GlobalKeyword.IsKind(
+                        SyntaxKind.GlobalKeyword)))
+            {
+                if (!ShouldKeepGlobalUsing(
+                    usingDirective,
+                    model,
+                    referencedSymbols,
+                    referencedMemberTypes))
+                {
+                    continue;
+                }
+
+                yield return usingDirective
+                    .WithGlobalKeyword(default)
+                    .WithLeadingTrivia()
+                    .WithTrailingTrivia();
+            }
+        }
+
+        if (autoImportTree is not null)
+        {
+            CompilationUnitSyntax root =
+                (CompilationUnitSyntax)autoImportTree.GetRoot();
+            SemanticModel model =
+                compilation.GetSemanticModel(autoImportTree);
+
+            foreach (UsingDirectiveSyntax usingDirective in root.Usings)
+            {
+                if (!ShouldKeepGlobalUsing(
+                    usingDirective,
+                    model,
+                    referencedSymbols,
+                    referencedMemberTypes))
+                {
+                    continue;
+                }
+
+                yield return usingDirective
+                    .WithGlobalKeyword(default)
+                    .WithLeadingTrivia()
+                    .WithTrailingTrivia();
+            }
+        }
+    }
+
+    private bool ShouldKeepGlobalUsing(
+        UsingDirectiveSyntax usingDirective,
+        SemanticModel model,
+        IReadOnlyCollection<ISymbol> referencedSymbols,
+        IReadOnlyCollection<INamedTypeSymbol> referencedMemberTypes)
+    {
+        if (usingDirective.Alias is not null)
+            return true;
+
+        if (usingDirective.StaticKeyword.IsKind(SyntaxKind.StaticKeyword))
+        {
+            INamedTypeSymbol? type =
+                model.GetTypeInfo(usingDirective.Name!).Type as INamedTypeSymbol;
+
+            return type is not null && referencedMemberTypes.Any(referenced =>
+                SymbolEqualityComparer.Default.Equals(
+                    referenced.OriginalDefinition,
+                    type.OriginalDefinition));
+        }
+
+        ISymbol? symbol = model.GetSymbolInfo(usingDirective.Name!).Symbol;
+
+        return symbol is INamespaceSymbol targetNamespace &&
+            referencedSymbols.Any(referenced =>
+                IsWithinNamespace(
+                    referenced.ContainingNamespace,
+                    targetNamespace));
     }
 
     public string GetEntryCodeWithoutUsings()
