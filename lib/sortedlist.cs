@@ -10,7 +10,7 @@ using static System.Array;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
-public class Treap<T> : IEnumerable<T>
+public class Treap<T> : IEnumerable<T>, IEquatable<Treap<T>>
 where T : IComparable<T>
 {
     private class Node
@@ -503,6 +503,41 @@ where T : IComparable<T>
     public void Clear()
     {
         root = null;
+    }
+
+    public bool Equals(Treap<T> other)
+    {
+        if (ReferenceEquals(this, other))
+            return true;
+
+        if (other == null || Count != other.Count)
+            return false;
+
+        var comparer = EqualityComparer<T>.Default;
+        using var left = GetEnumerator();
+        using var right = other.GetEnumerator();
+
+        while (left.MoveNext())
+        {
+            if (!right.MoveNext() || !comparer.Equals(left.Current, right.Current))
+                return false;
+        }
+
+        return true;
+    }
+
+    public override bool Equals(object obj)
+        => obj is Treap<T> other && Equals(other);
+
+    public override int GetHashCode()
+    {
+        var comparer = EqualityComparer<T>.Default;
+        int hash = 17;
+
+        foreach (T item in this)
+            hash = unchecked(hash * 31 + (item is null ? 0 : comparer.GetHashCode(item)));
+
+        return hash;
     }
 
     public IEnumerator<T> GetEnumerator()
