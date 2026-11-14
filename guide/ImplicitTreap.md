@@ -34,6 +34,7 @@
 | [`Count`](#count)       | 現在の要素数を取得     |
 | [`IsEmpty`](#isempty)   | Treap が空か判定   |
 | [`Contains`](#contains) | 指定した値が存在するか判定 |
+| [`Equals`](#equals)     | 要素の並びが等しいか判定   |
 
 ## 要素へのアクセス
 
@@ -2658,3 +2659,18 @@ treap[index]
 ```
 
 という条件が揃った場合、Implicit Treapは非常に有力な選択肢です。
+
+---
+
+# Equals
+
+`Equals(ImplicitTreap<T>)` は、2つの Treap の要素数と各位置の値がすべて等しい場合に `true` を返します。
+
+```csharp
+var first = new ImplicitTreap<int>(new[] { 1, 2, 3 });
+var second = new ImplicitTreap<int>(new[] { 1, 2, 3 });
+
+Console.WriteLine(first.Equals(second)); // True
+```
+
+`Equals(object)` と `GetHashCode()` も同じ順序の要素列に基づいています。比較は `EqualityComparer<T>.Default` を使用し、時間計算量は **O(N)** です。

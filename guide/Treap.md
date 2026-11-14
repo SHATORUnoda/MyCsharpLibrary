@@ -11,6 +11,7 @@
 | [Treap(IEnumerable<T> values)](#constructor-values) | 列挙可能な要素から作成  | 期待 O(N log N) |
 | [Count](#count)                                     | 要素数を取得       |          O(1) |
 | [IsEmpty](#isempty)                                 | 空か判定         |          O(1) |
+| [Equals](#equals)                                   | 全要素が等しいか判定   |          O(N) |
 
 ### 要素操作
 
@@ -1890,3 +1891,18 @@ UpperBound      期待 O(log N)
 > **「重複ありの Ordered Set + k-th 操作 + LowerBound / UpperBound」**
 
 として使うのが特に分かりやすいです。
+
+---
+
+# Equals
+
+`Equals(Treap<T>)` は、2つの Treap の列挙順の要素がすべて等しい場合に `true` を返します。重複数も比較対象になります。
+
+```csharp
+var first = new Treap<int>(new[] { 1, 2, 2, 3 });
+var second = new Treap<int>(new[] { 3, 2, 1, 2 });
+
+Console.WriteLine(first.Equals(second)); // True
+```
+
+`Equals(object)` と `GetHashCode()` も同じ要素列に基づいています。比較は `EqualityComparer<T>.Default` を使用し、時間計算量は **O(N)** です。
