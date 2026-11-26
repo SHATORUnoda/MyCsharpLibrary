@@ -122,7 +122,7 @@ public static class IndexList
         return d;
     }
 }
-    public static class PrefixSum
+public static class PrefixSum
     {
         // int[] / List<int> -> int[]
         public static int[] PSIntArray(IReadOnlyList<int> a)
